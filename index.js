@@ -13,7 +13,7 @@ const RPC_L1 = "https://ethereum-sepolia-rpc.publicnode.com";
 const RPC_L2 = "https://sepolia-rpc.giwa.io";
 
 if (!PRIVATE_KEY) {
-  console.error('Harap isi PRIVATE_KEY di .env');
+  console.error('Please set PRIVATE_KEY in your .env file');
   process.exit(1);
 }
 const account = privateKeyToAccount(PRIVATE_KEY.startsWith('0x') ? PRIVATE_KEY : `0x${PRIVATE_KEY}`);
@@ -43,8 +43,8 @@ function isValidAmount(v) { try { parseEther(v); return true; } catch { return f
 
 async function sanityCheckRpcs() {
   const [idL1, idL2] = await Promise.all([publicClientL1.getChainId(), publicClientL2.getChainId()]);
-  if (idL1 !== sepolia.id) throw new Error(`RPC L1 bukan Sepolia (id=${idL1})`);
-  if (idL2 !== giwaSepolia.id) throw new Error(`RPC L2 bukan GIWA Sepolia (id=${idL2})`);
+  if (idL1 !== sepolia.id) throw new Error(`L1 RPC is not Sepolia (id=${idL1})`);
+  if (idL2 !== giwaSepolia.id) throw new Error(`L2 RPC is not Giwa Sepolia (id=${idL2})`);
 }
 
 async function showInitialBalances() {
@@ -52,10 +52,10 @@ async function showInitialBalances() {
     publicClientL1.getBalance({ address: account.address }),
     publicClientL2.getBalance({ address: account.address }),
   ]);
-  console.log('\n=== BALANCE ===');
+  console.log('\n=== BALANCES ===');
   console.log(`Sepolia (L1):      ${formatEther(l1)} ETH`);
-  console.log(`GIWA Sepolia (L2): ${formatEther(l2)} ETH`);
-  console.log('================\n');
+  console.log(`Giwa Sepolia (L2): ${formatEther(l2)} ETH`);
+  console.log('=================\n');
 }
 
 function startSpinner(text) {
@@ -80,14 +80,14 @@ async function waitForL2Credit(prevBalance, increaseWei, { timeoutMs = 10 * 60_0
     if (now >= target) return now;
     await sleep(intervalMs);
   }
-  throw new Error('Timeout menunggu saldo L2 bertambah. Cek explorer/RPC.');
+  throw new Error('Timeout: L2 balance did not increase. Check explorer/RPC.');
 }
 
 async function depositEth(amount) {
   const beforeL2 = await publicClientL2.getBalance({ address: account.address });
   const wei = parseEther(amount);
 
-  console.log(`\nDeposit ${amount} ETH: Sepolia -> GIWA  ...`);
+  console.log(`\nDeposit ${amount} ETH: Sepolia -> Giwa ...`);
   const bridge = giwaSepolia.contracts.l1StandardBridge[sepolia.id].address;
   const minGasLimit = 200_000;
   const hash = await walletClientL1.writeContract({
@@ -97,21 +97,21 @@ async function depositEth(amount) {
     args: [account.address, minGasLimit, '0x'],
     value: wei,
   });
-  console.log(`L1 bridge tx : ${hash} (menunggu konfirmasi...)`);
+  console.log(`L1 bridge tx : ${hash} (waiting for confirmation...)`);
 
-  const animL1 = startSpinner('Menunggu konfirmasi L1...');
+  const animL1 = startSpinner('Waiting for L1 confirmation...');
   const rec = await publicClientL1.waitForTransactionReceipt({ hash });
   stopSpinner(animL1, '✔️ L1 tx confirmed!');
 
-  if (rec.status !== 'success') throw new Error('depositETHTo reverted di L1.');
+  if (rec.status !== 'success') throw new Error('depositETHTo reverted on L1.');
 
-  console.log('Menunggu saldo L2 bertambah...');
-  const animL2 = startSpinner('Menunggu saldo L2...');
+  console.log('Waiting for L2 balance increase...');
+  const animL2 = startSpinner('Monitoring L2 balance...');
   const afterL2 = await waitForL2Credit(beforeL2, wei);
-  stopSpinner(animL2, '✔️ Saldo L2 bertambah!');
+  stopSpinner(animL2, '✔️ L2 balance increased!');
 
-  console.log('\nDeposit selesai!');
-  console.log(`GIWA Sepolia (L2) Balance: ${formatEther(afterL2)} ETH\n`);
+  console.log('\nDeposit completed!');
+  console.log(`Giwa Sepolia (L2) Balance: ${formatEther(afterL2)} ETH\n`);
 }
 
 async function main() {
@@ -120,11 +120,11 @@ async function main() {
     await showInitialBalances();
 
     const rl = readline.createInterface({ input, output });
-    const amount = (await rl.question('Masukkan jumlah deposit (ETH), contoh 0.05: ')).trim();
+    const amount = (await rl.question('Enter deposit amount in ETH (e.g., 0.05): ')).trim();
     rl.close();
 
     if (!isValidAmount(amount)) {
-      console.log('Jumlah tidak valid.');
+      console.log('Invalid amount.');
       process.exit(1);
     }
 
